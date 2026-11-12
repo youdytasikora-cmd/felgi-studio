@@ -158,17 +158,21 @@ const WheelDetector=(()=>{
    if(!chosen)return{ok:false,needsManual:true,reason:"Wykrycie niepewne: nie będziemy nakładać felg na przypadkowe obszary. Przeciągnij felgi na koła.",candidates:ellipses.length,method:"safe-manual"};
    const s=Math.min(CW/img.naturalWidth,CH/img.naturalHeight),xPad=(CW-img.naturalWidth*s)/2,yPad=(CH-img.naturalHeight*s)/2;
    const maxMajor=Math.max(...chosen.map(c=>c.a)),minMajor=Math.min(...chosen.map(c=>c.a));
+   // Side-profile wheels should have very similar apparent diameters; Hough can
+   // lock onto the smaller INNER rim for only one wheel. Share the larger tyre radius.
+   const sideProfile=method==="validated-side-profile-hough"&&Math.abs(chosen[0].y-chosen[1].y)<h*.05;
    const wheels=chosen.map(c=>{
      // A closer wheel is often fitted to the bright inner metal rim, not the tyre edge.
      // Give that closer wheel a little more horizontal coverage to conceal the old silver rim.
      const nearPerspective=maxMajor>minMajor*1.35&&c.a>=maxMajor*.94;
-     const tyreR=c.a*s/scale,shape=clamp(c.b/c.a*(nearPerspective?1.23:1),.19,1),rimR=tyreR*.84;
+     const effectiveMajor=sideProfile&&maxMajor>c.a*1.16?maxMajor:c.a;
+     const tyreR=effectiveMajor*s/scale,shape=clamp(c.b/c.a*(nearPerspective?1.23:1),.19,1),rimR=tyreR*.84;
      // The metallic rim must sit INSIDE the existing tyre and leave its sidewall visible.
      // tilt is exposed to users as perspective, widthScale preserves real ellipse proportions.
      const tilt=Math.round(clamp(100-Math.max(0,.92-shape)*47,74,100));
      const radius=Math.round(clamp(rimR/(tilt/100),20,170));
      const widthScale=Math.round(clamp(shape*tilt,20,110));
-     const profile=estimateArch(edges,c,c.a,w,h);
+     const profile=estimateArch(edges,c,effectiveMajor,w,h);
      const factor=tyreR/(radius||1);
      return{x:xPad+c.x*s/scale,y:yPad+c.y*s/scale,radius,tyreRadius:Math.round(tyreR),
        widthScale,tilt,angle:Math.round(clamp(c.rotation??0,-25,25)),
