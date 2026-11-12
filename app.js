@@ -21,7 +21,9 @@ return c}
 const assets=types.map((_,i)=>wheelData(i));
 types.forEach((t,i)=>{const b=document.createElement("button");b.type="button";b.className="wheelbtn"+(i===0?" active":"");const im=document.createElement("img");im.alt="Własny rysunek felgi "+t.label;im.src=assets[i].toDataURL("image/png");b.append(im,document.createTextNode(t.label));b.addEventListener("click",()=>{selectedType=i;document.querySelectorAll(".wheelbtn").forEach((n,j)=>n.classList.toggle("active",i===j));if(selected!==-1)items[selected].type=i;render()});els.wheels.append(b)});
 function add(x,y,size=110){items.push({x,y,size,tilt:100,widthScale:85,angle:0,skew:0,type:selectedType,archCut:-25,archCurve:30,brightness:100,contrast:100,warmth:0,shadow:40,edgeBlur:1,strokes:[]});selected=items.length-1;sync();render()}
-function sync(){const v=items[selected];for(const k of ["size","tilt","widthScale","angle","skew","archCut","archCurve","brightness","contrast","warmth","shadow","edgeBlur"]){els[k].disabled=!v;if(v)els[k].value=v[k]}["size","tilt","widthScale","angle","skew","archCut","archCurve","brightness","contrast","warmth","shadow","edgeBlur"].forEach(k=>document.querySelector("#"+k+"Val").textContent=v?(k==="size"?v.size+" px":(k==="tilt"||k==="widthScale")?v[k]+"%":(k==="archCut"||k==="archCurve"||k==="brightness"||k==="contrast"||k==="shadow")?v[k]+"%":k==="edgeBlur"?v[k]+" px":k==="warmth"?String(v[k]):v[k]+"°"):"—");els.status.textContent=photo?"ZDJĘCIE LOKALNE • "+items.length+" FELGI":"TRYB DEMONSTRACYJNY";
+function sync(){const v=items[selected];for(const k of ["size","tilt","widthScale","angle","skew","archCut","archCurve","brightness","contrast","warmth","shadow","edgeBlur"]){els[k].disabled=!v;if(v)els[k].value=k==="edgeBlur"?v[k]:Math.round(v[k])}["size","tilt","widthScale","angle","skew","archCut","archCurve","brightness","contrast","warmth","shadow","edgeBlur"].forEach(k=>document.querySelector("#"+k+"Val").textContent=v?(k==="size"?Math.round(v.size)+" px":(k==="tilt"||k==="widthScale")?v[k]+"%":(k==="archCut"||k==="archCurve"||k==="brightness"||k==="contrast"||k==="shadow")?v[k]+"%":k==="edgeBlur"?v[k]+" px":k==="warmth"?String(v[k]):v[k]+"°"):"—");els.status.textContent=photo?"ZDJĘCIE LOKALNE • "+items.length+" FELGI":"TRYB DEMONSTRACYJNY";
+const selectedLabel=document.querySelector("#selectedWheelLabel");
+if(selectedLabel)selectedLabel.textContent=selected<0?"Kliknij felgę, aby ją edytować":"Wybrana felga "+(selected+1)+" z "+items.length;
 overlaynote.textContent=photo&&items.length<2?"KLIKNIJ ŚRODEK "+(items.length===0?"PIERWSZEGO":"DRUGIEGO")+" KOŁA": "PRZECIĄGNIJ FELGĘ, ABY USTAWIĆ POZYCJĘ"}
 function transform(w){ctx.translate(w.x,w.y);ctx.rotate(w.angle*Math.PI/180);ctx.transform((w.widthScale??85)/100,w.skew/250,0,w.tilt/100,0,0)}
 const wheelLayer=document.createElement("canvas");wheelLayer.width=1200;wheelLayer.height=800;
@@ -31,6 +33,11 @@ function drawWheel(w,highlight){
   wc.setTransform(1,0,0,1,0,0);wc.clearRect(0,0,1200,800);
   wc.save();wc.translate(w.x,w.y);wc.rotate(w.angle*Math.PI/180);
   wc.transform((w.widthScale??85)/100,w.skew/250,0,w.tilt/100,0,0);
+  // Local tyre-coloured underlay softly hides remnants of the original metal rim,
+  // without painting over the outer sidewall (the falloff ends inside the detected tyre).
+  wc.save();const tyreFade=wc.createRadialGradient(0,0,sz*.72,0,0,sz*1.12);
+  tyreFade.addColorStop(0,"rgba(10,12,14,.92)");tyreFade.addColorStop(.68,"rgba(10,12,14,.83)");tyreFade.addColorStop(1,"rgba(10,12,14,0)");
+  wc.fillStyle=tyreFade;wc.beginPath();wc.arc(0,0,sz*1.12,0,Math.PI*2);wc.fill();wc.restore();
   wc.save();wc.shadowColor="rgba(0,0,0,"+((w.shadow??40)/130)+")";wc.shadowBlur=sz*.18;wc.shadowOffsetY=sz*.07;
   wc.fillStyle="rgba(0,0,0,.42)";wc.beginPath();wc.arc(0,0,sz*.98,0,Math.PI*2);wc.fill();wc.restore();
   const grad=wc.createRadialGradient(0,0,sz*.6,0,0,sz*1.06);
@@ -69,10 +76,7 @@ function drawWheel(w,highlight){
     wc.stroke();
   }wc.restore();
   ctx.drawImage(wheelLayer,0,0);
-  if(highlight){ctx.save();ctx.translate(w.x,w.y);ctx.rotate(w.angle*Math.PI/180);
-    ctx.transform((w.widthScale??85)/100,w.skew/250,0,w.tilt/100,0,0);
-    ctx.strokeStyle="#e8efb2";ctx.lineWidth=2;ctx.setLineDash([8,5]);
-    ctx.beginPath();ctx.arc(0,0,sz,0,Math.PI*2);ctx.stroke();ctx.restore();}
+  // No yellow or green selection outline in the public preview.
 }
 function demo(){let bg=ctx.createLinearGradient(0,0,0,800);bg.addColorStop(0,"#aab1af");bg.addColorStop(.7,"#606a6c");bg.addColorStop(1,"#404748");ctx.fillStyle=bg;ctx.fillRect(0,0,1200,800);
 ctx.fillStyle="#555f62";ctx.fillRect(0,570,1200,230);
@@ -120,11 +124,12 @@ async function runAutoDetection(image, token=detectionToken){
     items=[];
     for(const wheel of result.wheels){
       add(wheel.x,wheel.y,wheel.radius);
-      const w=items.at(-1);w.archCut=result.arch.cut;w.archCurve=result.arch.curve;w.archProfile=wheel.archProfile;w.widthScale=wheel.widthScale??85;
+      const w=items.at(-1);w.archCut=result.arch.cut;w.archCurve=result.arch.curve;w.archProfile=wheel.archProfile;w.widthScale=wheel.widthScale??85;w.tilt=wheel.tilt??100;w.angle=wheel.angle??0;w.tyreRadius=wheel.tyreRadius;
       // Treat confidence as relative Hough pairing heuristic, not a calibrated probability.
       w.autoDetected=true;
     }
-    selected=-1;sync();render();
+    // Wybierz koło bliższe aparatowi (zazwyczaj większe): wartości perspektywy są od razu widoczne.
+    selected=items[0].tyreRadius>=items[1].tyreRadius?0:1;sync();render();
     status.textContent="Znaleziono dwa koła i przybliżony łuk nadkola. Możesz poprawić pozycję, promień i maskę.";
     window.lastAutoDetection=result;
   }catch(e){if(token!==detectionToken)return;status.textContent="Automatyczne wykrycie niedostępne: "+e.message+". Ustaw koła ręcznie.";window.lastAutoDetection={ok:false,reason:e.message};}

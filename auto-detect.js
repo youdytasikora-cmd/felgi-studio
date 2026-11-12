@@ -46,7 +46,8 @@ const WheelDetector=(()=>{
        const std=Math.sqrt(Math.max(0,sum2/count-Math.pow(sum/count,2)));
        if(std<9)continue;
        const score=(item.name==="dark"?4:item.name==="edge"?3:2)+Math.min(4,fill*4)+Math.min(3,std/13)+Math.min(1,a/60);
-       output.push({x,y,a,b,score,method:item.name});
+       const majorAngle=(e.angle+(e.size.height>e.size.width?90:0))%180;
+       output.push({x,y,a,b,score,method:item.name,rotation:((majorAngle-90+90)%180)-90});
       }finally{contour.delete()}
      }
     }finally{contours.delete();hierarchy.delete()}
@@ -56,6 +57,41 @@ const WheelDetector=(()=>{
    for(const c of output)if(!unique.some(t=>Math.hypot(c.x-t.x,c.y-t.y)<Math.max(13,Math.min(c.b,t.b)*.55)))unique.push(c);
    return unique.slice(0,55);
   }finally{mats[0].mask.delete();mats[2].mask.delete()}
+ }
+ // The distant wheel on a 3/4 view can look like a VERY thin, partly occluded
+ // vertical ellipse; old min-axis filtering omitted it altogether.
+ function edgeOnCandidates(edges){
+   const contours=new cv.MatVector(),hierarchy=new cv.Mat(),result=[];
+   try{
+     cv.findContours(edges,contours,hierarchy,cv.RETR_LIST,cv.CHAIN_APPROX_SIMPLE);
+     for(let i=0;i<contours.size();i++){
+       const contour=contours.get(i);
+       try{
+         if(contour.rows<35)continue;
+         const el=cv.fitEllipse(contour),x=el.center.x,y=el.center.y,a=Math.max(el.size.width,el.size.height)/2,b=Math.min(el.size.width,el.size.height)/2;
+         const majorAngle=(el.angle+(el.size.height>el.size.width?90:0))%180,rotation=majorAngle-90;
+         if(!(a>12&&a<65&&b>2.8&&b<16&&a/b>2.3&&a/b<9&&Math.abs(rotation)<30&&x>edges.cols*.027&&x<edges.cols*.95&&y>edges.rows*.25&&y<edges.rows*.89))continue;
+         const fill=cv.contourArea(contour)/(Math.PI*a*b);
+         if(fill<.008||fill>.35)continue;
+         result.push({x,y,a,b,rotation,fill,len:contour.rows,method:"edge-on"});
+       }finally{contour.delete()}
+     }
+     return result;
+   }finally{contours.delete();hierarchy.delete()}
+ }
+ function edgeOnPair(main,slim,w,h){
+   let best=null;
+   for(const front of main){
+     if(front.score<10.2||front.a<30||front.b<15||front.y<h*.46||front.x<w*.14||front.x>w*.83)continue;
+     for(const far of slim){
+       const dx=Math.abs(front.x-far.x),dy=front.y-far.y,sizeRatio=far.a/front.a;
+       if(dx<w*.17||dx>w*.48||dy<h*.09||dy>h*.31||sizeRatio<.25||sizeRatio>.77)continue;
+       const score=front.score+Math.min(4,far.len/35)+Math.max(0,1-Math.abs(dx/w-.31)*3)
+         -Math.abs(dy/h-.20)*12-Math.abs(sizeRatio-.48)*4-Math.abs(far.rotation)/90;
+       if(!best||score>best.score)best={front,far,score};
+     }
+   }
+   return best;
  }
  function ellipsePair(candidates,w,h){
   let best=null;
@@ -109,21 +145,36 @@ const WheelDetector=(()=>{
    cv.GaussianBlur(gray,blur,new cv.Size(5,5),1.2,1.2,cv.BORDER_DEFAULT);
    cv.Canny(blur,edges,45,120);
    const ellipses=ellipseCandidates(gray,blur,edges),pair=ellipsePair(ellipses,w,h);
+   const slim=edgeOnPair(ellipses,edgeOnCandidates(edges),w,h);
    let method,chosen,confidence;
-   if(pair&&pair.score>=20.3){chosen=[pair.left,pair.right];method="contour-ellipses";confidence=pair.score}
-   else{
+   if(pair&&pair.score>=20.3){
+     chosen=[pair.left,pair.right];method="contour-ellipses";confidence=pair.score;
+   }else if(slim&&slim.score>=13.2){
+     chosen=[slim.front,slim.far].sort((a,b)=>a.x-b.x);method="perspective-edge-on";confidence=slim.score;
+   }else{
     const fallback=houghFallback(gray,blur,img.naturalWidth/img.naturalHeight);
-    if(fallback){chosen=[fallback.left,fallback.right].map(c=>({x:c.x,y:c.y,a:c.r,b:c.r,method:"hough"}));method="validated-side-profile-hough";confidence=fallback.score}
+    if(fallback){chosen=[fallback.left,fallback.right].map(c=>({x:c.x,y:c.y,a:c.r,b:c.r,method:"hough",rotation:0}));method="validated-side-profile-hough";confidence=fallback.score}
    }
    if(!chosen)return{ok:false,needsManual:true,reason:"Wykrycie niepewne: nie będziemy nakładać felg na przypadkowe obszary. Przeciągnij felgi na koła.",candidates:ellipses.length,method:"safe-manual"};
    const s=Math.min(CW/img.naturalWidth,CH/img.naturalHeight),xPad=(CW-img.naturalWidth*s)/2,yPad=(CH-img.naturalHeight*s)/2;
+   const maxMajor=Math.max(...chosen.map(c=>c.a)),minMajor=Math.min(...chosen.map(c=>c.a));
    const wheels=chosen.map(c=>{
-    const radius=c.a*s/scale;
-    return{x:xPad+c.x*s/scale,y:yPad+c.y*s/scale,radius:clamp(radius,25,125),
-      widthScale:Math.round(clamp(c.b/c.a*.98, .38,1)*100),
-      archProfile:estimateArch(edges,c,c.a,w,h)};
+     // A closer wheel is often fitted to the bright inner metal rim, not the tyre edge.
+     // Give that closer wheel a little more horizontal coverage to conceal the old silver rim.
+     const nearPerspective=maxMajor>minMajor*1.35&&c.a>=maxMajor*.94;
+     const tyreR=c.a*s/scale,shape=clamp(c.b/c.a*(nearPerspective?1.23:1),.19,1),rimR=tyreR*.84;
+     // The metallic rim must sit INSIDE the existing tyre and leave its sidewall visible.
+     // tilt is exposed to users as perspective, widthScale preserves real ellipse proportions.
+     const tilt=Math.round(clamp(100-Math.max(0,.92-shape)*47,74,100));
+     const radius=Math.round(clamp(rimR/(tilt/100),20,170));
+     const widthScale=Math.round(clamp(shape*tilt,20,110));
+     const profile=estimateArch(edges,c,c.a,w,h);
+     const factor=tyreR/(radius||1);
+     return{x:xPad+c.x*s/scale,y:yPad+c.y*s/scale,radius,tyreRadius:Math.round(tyreR),
+       widthScale,tilt,angle:Math.round(clamp(c.rotation??0,-25,25)),
+       archProfile:profile?profile.map(pt=>({x:pt.x*factor,y:pt.y*factor})):null};
    });
-   return{ok:true,wheels,method,score:confidence,arch:{cut:-18,curve:85},reason:"Wykryto kontury opon (także elipsy) albo zweryfikowane koła boczne; dopasowanie można poprawić ręcznie."};
+   return{ok:true,wheels,method,score:confidence,arch:{cut:-18,curve:85},reason:"Wykryto kontury opon, w tym spłaszczone elipsy z perspektywy; metalowa felga mieści się wewnątrz opony. Wynik można poprawić ręcznie."};
   }finally{for(const m of [source,gray,blur,edges])if(m)m.delete()}
  }
  function isReady(){return typeof cv!=="undefined"&&typeof cv.Mat==="function"&&typeof cv.findContours==="function"&&typeof cv.fitEllipse==="function"}
