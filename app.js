@@ -110,11 +110,17 @@ async function runAutoDetection(image, token=detectionToken){
     if(token!==detectionToken||photo!==image)return;
     const result=WheelDetector.locate(image);
     if(token!==detectionToken||photo!==image)return;
-    if(!result.ok){status.textContent="Nie znaleziono pewnej pary kół. Kliknij środki kół ręcznie.";return}
+    if(!result.ok){
+      // In uncertain photos (3/4, occlusions) put two draggable rims in the bottom work area,
+      // not on the bonnet, door, or a guessed pair of circles.
+      items=[];add(170,744,48);add(1030,744,48);selected=-1;sync();render();
+      status.textContent="Wykrycie niepewne — felgi czekają na dole kadru. Przeciągnij je na prawdziwe koła lub kliknij «Ustaw ręcznie».";
+      window.lastAutoDetection=result;return
+    }
     items=[];
     for(const wheel of result.wheels){
       add(wheel.x,wheel.y,wheel.radius);
-      const w=items.at(-1);w.archCut=result.arch.cut;w.archCurve=result.arch.curve;w.archProfile=wheel.archProfile;
+      const w=items.at(-1);w.archCut=result.arch.cut;w.archCurve=result.arch.curve;w.archProfile=wheel.archProfile;w.widthScale=wheel.widthScale??85;
       // Treat confidence as relative Hough pairing heuristic, not a calibrated probability.
       w.autoDetected=true;
     }
@@ -125,3 +131,14 @@ async function runAutoDetection(image, token=detectionToken){
 }
 document.querySelector("#redetect").onclick=()=>{if(!photo)return;const token=++detectionToken;items=[];selected=-1;sync();render();runAutoDetection(photo,token)};
 document.querySelector("#manualPlacement").onclick=()=>{++detectionToken;items=[];selected=-1;sync();render();document.querySelector("#detectInfo").textContent="Tryb ręczny: kliknij oba środki kół na zdjęciu, potem dostrój maskę i rozmiar."};
+
+// One-click examples: same-origin photographs, decoded and analysed in this browser, without uploads.
+document.addEventListener("click",e=>{
+  const button=e.target.closest("[data-example-src]");if(!button)return;
+  const token=++detectionToken,im=new Image();
+  button.disabled=true;
+  document.querySelector("#detectInfo").textContent="Wczytuję wybrane zdjęcie testowe…";
+  im.onload=()=>{button.disabled=false;photo=im;window.lastAutoDetection=undefined;items=[];selected=-1;sync();render();runAutoDetection(im,token);canvas.scrollIntoView({behavior:"smooth",block:"center"})};
+  im.onerror=()=>{button.disabled=false;document.querySelector("#detectInfo").textContent="Nie udało się wczytać zdjęcia przykładowego."};
+  im.src=button.dataset.exampleSrc;
+});

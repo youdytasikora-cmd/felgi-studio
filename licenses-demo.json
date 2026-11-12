@@ -1,30 +1,58 @@
 [
   {
-    "file": "auto-3.jpg",
-    "title": "1970 AMC Javelin base model brown md-Do",
-    "artist": "CZmarlin",
-    "license": "Public domain",
-    "source": "https://commons.wikimedia.org/wiki/File:1970_AMC_Javelin_base_model_brown_md-Do.jpg"
-  },
-  {
-    "file": "auto-2.jpg",
-    "title": "Alfa Romeo Arna in profile 1984",
-    "artist": "Charles01",
-    "license": "Public domain",
-    "source": "https://commons.wikimedia.org/wiki/File:Alfa_Romeo_Arna_in_profile_1984.jpg"
-  },
-  {
-    "file": "auto-1.jpg",
-    "title": "Google Maps Car Sideview",
-    "artist": "LasPo rocks",
-    "license": "CC0",
-    "source": "https://commons.wikimedia.org/wiki/File:Google_Maps_Car_Sideview.jpg"
-  },
-  {
-    "file": "auto-4.jpg",
-    "title": "Lada Vesta sedan brown side",
+    "file": "sedan-mercedes-e350.jpg",
+    "title": "Sedan — Mercedes-Benz E350",
+    "original_title": "2022 Mercedes-Benz E350 white side.jpg",
     "artist": "Throwawayacc222",
     "license": "CC0",
-    "source": "https://commons.wikimedia.org/wiki/File:Lada_Vesta_sedan_brown_side.jpg"
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://commons.wikimedia.org/wiki/File:2022_Mercedes-Benz_E350_white_side.jpg",
+    "modified": "Zmniejszono rozdzielczość zdjęcia, bez zmiany kadru / treści.",
+    "size": [
+      1280,
+      433
+    ]
+  },
+  {
+    "file": "hatchback-toyota-yaris.jpg",
+    "title": "Hatchback — Toyota Yaris",
+    "original_title": "Toyota Yaris 001aaa.jpg",
+    "artist": "Sardaka",
+    "license": "CC0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://commons.wikimedia.org/wiki/File:Toyota_Yaris_001aaa.jpg",
+    "modified": "Zmniejszono rozdzielczość zdjęcia, bez zmiany kadru / treści.",
+    "size": [
+      1280,
+      858
+    ]
+  },
+  {
+    "file": "suv-toyota-rav4.jpg",
+    "title": "SUV — Toyota RAV4",
+    "original_title": "Moscow, Toyota RAV4 pearl-white, July 2026 03.jpg",
+    "artist": "Retire",
+    "license": "CC0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "source": "https://commons.wikimedia.org/wiki/File:Moscow,_Toyota_RAV4_pearl-white,_July_2026_03.jpg",
+    "modified": "Zmniejszono rozdzielczość zdjęcia, bez zmiany kadru / treści.",
+    "size": [
+      1280,
+      809
+    ]
+  },
+  {
+    "file": "kombi-corolla-touring-sports.jpg",
+    "title": "Kombi — Toyota Corolla Touring Sports",
+    "original_title": "Toyota Corolla TouringSports 2.0 premium Colour 1J6 03.jpg",
+    "artist": "Marco Delnoij/ EOSfoto.nl",
+    "license": "CC BY 4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "source": "https://commons.wikimedia.org/wiki/File:Toyota_Corolla_TouringSports_2.0_premium_Colour_1J6_03.jpg",
+    "modified": "Zmniejszono rozdzielczość zdjęcia, bez zmiany kadru / treści.",
+    "size": [
+      1280,
+      853
+    ]
   }
 ]
